@@ -5,17 +5,13 @@ package main
 import (
     "flag"
     "fmt"
-    "github.com/mitchellh/goamz/aws"
-    "github.com/mitchellh/goamz/s3"
     "gopkg.in/gcfg.v1"
-    "io"
     "log"
     "net/url"
     "os"
     "os/user"
     "path"
     "strings"
-
     "syscall"
     "os/exec"
 )
@@ -23,37 +19,19 @@ import (
 type Options struct {
     Runtime struct {
         Mountpoint string
-        Bucket string
     }
 }
 
 type AppContext struct {
     Application string
     File string
+    FullPath string
     Project string
     Uuid string
-    AWS struct {
-        AccessKey string
-        SecretKey string
-        Token string
-    }
 }
 
-var appContext AppContext
 var configFile string
-var options Options
-var s3Bucket *s3.Bucket
-var s3Client *s3.S3
-
 var uri string
-var suffix string
-
-var app string
-var bucketName string
-var filePath string
-var fullPath string
-var mediaId string
-var mount string
 
 var Logger *log.Logger;
 
@@ -70,21 +48,23 @@ func init(){
     }
 
     file, _ := os.OpenFile(path.Join(usr.HomeDir, ".threepio.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-    Logger = log.New(file,
-        "INFO: ",
-        log.Ldate|log.Ltime|log.Lshortfile)
+    Logger = log.New(file, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 }
 
-func readOptions() (string, string){
+func getMountPointFromOptionsFile() (string){
+    var options Options
     err := gcfg.ReadFileInto(&options, configFile)
     if err != nil {
         log.Fatalf("Failed to parse gcfg data: %s", err)
     }
 
-    return options.Runtime.Mountpoint, options.Runtime.Bucket
+    return options.Runtime.Mountpoint
 }
 
-func parseUri(uri string) {
+
+func parseUri(uri string) (AppContext) {
+    var appContextTest AppContext
+
     urlObj, err := url.Parse(uri)
     if err != nil {
         log.Fatal( err )
@@ -97,71 +77,27 @@ func parseUri(uri string) {
 
     schemeSplit := strings.Split(urlObj.Scheme, "+")
 
-    appContext.Application = schemeSplit[len(schemeSplit)-1]
-    appContext.Project = mutate(urlObj.Path)
-    appContext.Uuid = queryObj.Get("uuid")
+    appContextTest.Application = schemeSplit[len(schemeSplit)-1]
+    appContextTest.Project = mutate(urlObj.Path)
+    appContextTest.Uuid = queryObj.Get("uuid")
 
-    appContext.AWS.AccessKey = queryObj.Get("accessKey")
-    appContext.AWS.SecretKey = queryObj.Get("secretKey")
-    appContext.AWS.Token = queryObj.Get("sessionToken")
+    return appContextTest
 }
 
-func createDirIfMissing(){
+func createDirIfMissing(fullPath string){
     err := os.MkdirAll(fullPath, 0755)
     if err != nil {
         Logger.Fatal( err )
     }
 }
 
-func syncAssets(){
-    var auth aws.Auth
-    auth.AccessKey = appContext.AWS.AccessKey
-    auth.SecretKey = appContext.AWS.SecretKey
-    auth.Token = appContext.AWS.Token
-
-    s3Client = s3.New(auth, aws.EUWest)
-    s3Bucket = s3Client.Bucket(bucketName)
-
-    prefix := appContext.Uuid + "/"
-    resp, err := s3Bucket.List(prefix, "/", "", 1000)
-
-    if err != nil {
-        Logger.Fatal(err)
-    }
-
-    for _,c := range resp.Contents {
-        filename := strings.TrimPrefix(c.Key, prefix)
-
-        if filename == "" {
-            continue
-        }
-
-        outFile, err := os.Create(path.Join(fullPath, filename))
-        rc,err := s3Bucket.GetReader(c.Key)
-
-        if err != nil {
-            Logger.Fatal(err)
-        }
-
-        defer outFile.Close()
-        _, err = io.Copy(outFile, rc)
-
-        if err != nil {
-            Logger.Fatal(err)
-        }
-
-
-        Logger.Println(c)
-    }
-}
-
-func launch(){
+func launch(appContext AppContext)(AppContext){
     binary, lookErr := exec.LookPath("open")
     if lookErr != nil {
         Logger.Fatal(lookErr)
     }
 
-    args := []string{"open", path.Join(fullPath, appContext.File)}
+    args := []string{"open", path.Join(appContext.FullPath, appContext.File)}
 
     env := os.Environ()
 
@@ -169,6 +105,7 @@ func launch(){
     if execErr != nil {
         Logger.Fatal(execErr)
     }
+    return appContext
 }
 
 func mutate(s string) (s_mux string) {
@@ -178,31 +115,34 @@ func mutate(s string) (s_mux string) {
     return
 }
 
-func inferFilename() {
+func inferFilename(appContext AppContext)(AppContext) {
+    var suffix string
+
     switch appContext.Application {
     case "prelude": suffix = "plproj"
     case "premiere": suffix = "prproj"
     }
 
     appContext.File = fmt.Sprintf("%s.%s", appContext.Project, suffix)
+    return appContext
+}
+
+func getAppContext(uri string, mount string)(AppContext) {
+    var appContext = parseUri(uri)
+    appContext = inferFilename(appContext)
+    appContext.FullPath = path.Join(mount, appContext.Uuid)
+    return appContext
 }
 
 func main(){
     flag.Parse()
 
-    parseUri(uri)
-    inferFilename()
+    var mount = getMountPointFromOptionsFile()
+    var appContext = getAppContext(uri, mount)
 
-    mount, bucketName = readOptions()
+    Logger.Printf("Launching %s on path %s to edit %s with assets from project %s", appContext.Application, appContext.File, appContext.File , appContext.Uuid)
 
-    filePath = appContext.Uuid
+    createDirIfMissing(path.Join(mount, appContext.Uuid))
 
-    fullPath = path.Join(mount, filePath)
-    Logger.Printf("Launching %s on path %s to edit %s with assets from %s/%s",
-        appContext.Application, fullPath, appContext.File , bucketName, appContext.Uuid)
-
-    // Lets go to work
-    createDirIfMissing()
-    syncAssets()
-    launch()
+    launch(appContext)
 }

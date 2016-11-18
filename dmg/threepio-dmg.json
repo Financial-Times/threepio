@@ -1,0 +1,9 @@
+{
+  "title": "Threepio Application",
+  "icon": "../pkg/Threepio.app/Contents/Resources/threepio.icns",
+  "background": "Bkg.png",
+  "contents": [
+    { "x": 448, "y": 344, "type": "link", "path": "/Applications" },
+    { "x": 192, "y": 344, "type": "file", "path": "../pkg/Threepio.app" }
+  ]
+}

@@ -23,3 +23,62 @@ value           = alphanumeric;
 
 alphanumeric    = letter | digit, {alphanumeric | punctuation};
 ```
+
+Build
+--
+
+Golang
+--
+
+OSX
+---
+```brew update```
+```brew install go --with-cc-all```
+```brew reinstall go --cross-compile-all```
+
+Check the go version
+----
+```go version```
+```go version go1.7.3 darwin/amd64```
+
+
+Dependencies
+---
+
+Get the dependencies
+```
+go get
+```
+
+Compile and build
+Build binary
+```make dist```
+
+Running
+---
+```
+go run threepio.go -f=config/threepio.ini -u=threepio+prelude:///test?uuid=123456
+
+-f configuration file
+-u passed uri
+```
+
+or from binary
+
+```./threepio -f=config/threepio.ini -u=threepio+prelude:///test?uuid=123456```
+
+Packaging
+---
+
+Install dmg builder
+----
+```npm install -g appdmg```
+
+Build the dmg
+```appdmg dmg/threepio-dmg.json dmg/target/threepio.dmg```
+
+
+Registering
+---
+
+
