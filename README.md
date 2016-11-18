@@ -70,6 +70,13 @@ or from binary
 Packaging
 ---
 
+Install dmg builder
+----
+```npm install -g appdmg```
+
+Build the dmg
+```appdmg dmg/threepio-dmg.json dmg/target/threepio.dmg```
+
 
 Registering
 ---
