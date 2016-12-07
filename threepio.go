@@ -14,6 +14,7 @@ import (
     "strings"
     "syscall"
     "os/exec"
+    "io/ioutil"
 )
 
 type Options struct {
@@ -134,6 +135,17 @@ func getAppContext(uri string, mount string)(AppContext) {
     return appContext
 }
 
+
+func createAbobeProjectFilesIfNotExist(path string, fileContents []byte)(error error) {
+    if _, error = os.Stat(path); error != nil {
+        if os.IsNotExist(error) {
+            error = ioutil.WriteFile(path, fileContents, 0644)
+        }
+    }
+    return
+}
+
+
 func main(){
     flag.Parse()
 
@@ -143,6 +155,13 @@ func main(){
     Logger.Printf("Launching %s on path %s to edit %s with assets from project %s", appContext.Application, appContext.File, appContext.File , appContext.Uuid)
 
     createDirIfMissing(path.Join(mount, appContext.Uuid))
+
+    if file, error := ioutil.ReadFile("/Applications/Threepio.app/Contents/MacOs/empty.plproj"); error == nil {
+        createAbobeProjectFilesIfNotExist(path.Join(appContext.FullPath, appContext.Project)+".plproj",file)
+    }
+    if file, error := ioutil.ReadFile("/Applications/Threepio.app/Contents/MacOs/empty.prproj"); error == nil {
+        createAbobeProjectFilesIfNotExist(path.Join(appContext.FullPath, appContext.Project) + ".prproj", file)
+    }
 
     launch(appContext)
 }
