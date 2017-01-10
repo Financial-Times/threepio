@@ -8,3 +8,5 @@ machine:
 dependencies:
   pre:
     - npm install -g appdmg
+  post:
+    - appdmg dmg/threepio-dmg.json dmg/target/threepio.dmg
