@@ -1,4 +1,6 @@
 machine:
+  environment:
+    XCODE_SCHEME: threepio
   xcode:
     version: 8.0
 
